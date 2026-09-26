@@ -47,10 +47,12 @@ A title is the **claim the step makes**, not the name of the code it points at. 
 
 Trace the flow in the actual files first. A trail assembled from what the names imply is worse than prose, because it looks authoritative and puts the reader's cursor on the wrong line.
 
+The CLI ships inside this skill: it is the `virgil` file next to this `SKILL.md`. Run it by path from the skill's base directory, which the harness gives you when it loads the skill. Below, `<skill-dir>` stands for that directory. If `virgil` is on `PATH`, the bare name works too.
+
 Then pipe a draft in. Use a quoted heredoc so backticks and `$` inside notes survive the shell:
 
 ```sh
-virgil create <<'EOF'
+<skill-dir>/virgil create <<'EOF'
 {"title": "How a login request becomes a session", "steps": [
   {"path": "src/auth/login.ts", "range": [39, 52],
    "title": "Token minted here",
@@ -59,8 +61,8 @@ virgil create <<'EOF'
 EOF
 ```
 
-`virgil --help` has the full draft schema and the other commands. Anchors are derived from the files, never written by hand.
+`<skill-dir>/virgil --help` has the full draft schema and the other commands. Anchors are derived from the files, never written by hand.
 
 Fix everything it warns about, or tell the reader why you left it. Re-running `create` with the same id rewrites the trail in place and the reader's open tabpage reloads, so revising is cheap.
 
-Finally, hand over the title and `:Virgil <id>` and stop. Summarising the trail back in the terminal rebuilds the wall of `file:line` prose the trail exists to replace. `virgil cursor <id>` reports which step they reached, if you need to know whether it landed.
+Finally, hand over the title and `:Virgil <id>` and stop. Summarising the trail back in the terminal rebuilds the wall of `file:line` prose the trail exists to replace. `<skill-dir>/virgil cursor <id>` reports which step they reached, if you need to know whether it landed.
