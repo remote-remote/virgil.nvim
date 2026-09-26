@@ -17,9 +17,6 @@ Requires Neovim 0.10 or newer. With [lazy.nvim](https://github.com/folke/lazy.nv
 ```lua
 {
   "remote-remote/nvim-breadcrumbs",
-  -- Loading at startup starts the file watcher, so a trail rewritten by the
-  -- CLI reloads in the open tabpage. Without it the watcher starts on first use.
-  event = "VeryLazy",
   cmd = { "Breadcrumbs", "BreadcrumbsQuit", "BreadcrumbsNext", "BreadcrumbsPrev", "BreadcrumbsSteps", "BreadcrumbsQuickfix" },
   opts = {},
 }
