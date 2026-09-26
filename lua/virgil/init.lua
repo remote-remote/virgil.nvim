@@ -246,6 +246,20 @@ function init(opts)
   initialized = true
 end
 
+-- Meant for lazy.nvim's `build`, so it reruns on every plugin install and
+-- update. Prints one line per link; see install.lua for the options.
+function M.install(opts)
+  local install = require("virgil.install")
+  local results = install.run(opts)
+  if #results == 0 then
+    notify("install: nothing to do, pass skills_dirs or bin_dir", vim.log.levels.WARN)
+  end
+  for _, r in ipairs(results) do
+    notify(install.describe(r), r.action == "refused" and vim.log.levels.WARN or nil)
+  end
+  return results
+end
+
 -- Optional: the commands in plugin/ initialize with defaults on first use.
 function M.setup(opts)
   init(opts)
