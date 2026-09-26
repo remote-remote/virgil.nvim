@@ -19,7 +19,7 @@ Requires Neovim 0.10 or newer. With [lazy.nvim](https://github.com/folke/lazy.nv
 ```lua
 {
   "remote-remote/virgil.nvim",
-  cmd = { "Virgil", "VirgilQuit", "VirgilNext", "VirgilPrev", "VirgilSteps", "VirgilQuickfix" },
+  cmd = { "Virgil", "VirgilQuit", "VirgilNext", "VirgilPrev", "VirgilSteps", "VirgilQuickfix", "VirgilInstall" },
   opts = {},
 }
 ```
@@ -38,6 +38,7 @@ For a local checkout, replace the first line with `dir = "~/code/virgil.nvim"`.
 | `:VirgilSteps` | Pick a step in the active trail. |
 | `:VirgilQuickfix` | Dump the active trail into the quickfix list. |
 | `:VirgilQuit` | Leave the active trail and close its tabpage. |
+| `:VirgilInstall {dir} ...` | Link the agent skill into the given skills directories. See [Install the skill and the CLI](#install-the-skill-and-the-cli). |
 
 Inside the index panel: `j` / `k` preview the next or previous step, `<CR>` goes to the step's code, `o` shows it without leaving the panel, `]t` / `[t` step, `q` quits and `Q` dumps to quickfix.
 
