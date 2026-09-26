@@ -1,8 +1,8 @@
-local plugin = require("breadcrumbs")
-local panel = require("breadcrumbs.panel")
-local render = require("breadcrumbs.render")
-local store = require("breadcrumbs.store")
-local trail = require("breadcrumbs.trail")
+local plugin = require("virgil")
+local panel = require("virgil.panel")
+local render = require("virgil.render")
+local store = require("virgil.store")
+local trail = require("virgil.trail")
 
 local function keys(input)
   vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(input, true, false, true), "xt", false)

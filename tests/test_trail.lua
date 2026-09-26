@@ -1,4 +1,4 @@
-local trail = require("breadcrumbs.trail")
+local trail = require("virgil.trail")
 
 local function fixture(count, cursor)
   local steps = {}

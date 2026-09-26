@@ -1,11 +1,11 @@
 ---
-name: breadcrumbs
-description: Author a breadcrumb trail, a guided code tour the reader steps through in their editor. Use when asked to tour or walk through how something works, or when the answer would otherwise be prose full of file:line references the reader has to chase by hand.
+name: virgil
+description: Author a Virgil trail, a guided code tour the reader steps through in their editor. Use when asked to tour or walk through how something works, or when the answer would otherwise be prose full of file:line references the reader has to chase by hand.
 ---
 
-# Breadcrumb trails
+# Virgil trails
 
-A trail is an ordered walk through one flow. Each step is a file, a line range, a title and a note. The `breadcrumbs` CLI compiles it to `$XDG_DATA_HOME/breadcrumbs/<repo-key>/<id>.json` (falling back to `~/.local/share/breadcrumbs/`), outside the repo it describes; the breadcrumbs nvim plugin watches that directory and renders it as a tabpage, titles in a 38-column index panel and each note as virtual lines above the code itself. The reader opens it with `:Breadcrumbs` and steps with `:BreadcrumbsNext` / `:BreadcrumbsPrev`.
+A trail is an ordered walk through one flow. Each step is a file, a line range, a title and a note. The `virgil` CLI compiles it to `$XDG_DATA_HOME/virgil/<repo-key>/<id>.json` (falling back to `~/.local/share/virgil/`), outside the repo it describes; the virgil nvim plugin watches that directory and renders it as a tabpage, titles in a 38-column index panel and each note as virtual lines above the code itself. The reader opens it with `:Virgil` and steps with `:VirgilNext` / `:VirgilPrev`.
 
 Reach for one when the answer spans several files and the reader will want to be *in* those files: how a request becomes a session, how boot actually orders itself, what the change you just made touched. A question answered by one file, or answered yes/no, is prose.
 
@@ -33,7 +33,7 @@ The count falls out of how many load-bearing facts the flow actually has, not ou
 
 ## Titles
 
-Required: `breadcrumbs` refuses a step without one, because the alternative is the panel guessing from the note's first sentence.
+Required: `virgil` refuses a step without one, because the alternative is the panel guessing from the note's first sentence.
 
 A title is the **claim the step makes**, not the name of the code it points at. "Leader before every mapping", not "keymaps.lua". Keep it under about 34 columns or the panel truncates it. Read the titles on their own when you are done: they should hold together as an argument, which is what the reader skims when they come back to the trail a week later.
 
@@ -50,7 +50,7 @@ Trace the flow in the actual files first. A trail assembled from what the names 
 Then pipe a draft in. Use a quoted heredoc so backticks and `$` inside notes survive the shell:
 
 ```sh
-breadcrumbs create <<'EOF'
+virgil create <<'EOF'
 {"title": "How a login request becomes a session", "steps": [
   {"path": "src/auth/login.ts", "range": [39, 52],
    "title": "Token minted here",
@@ -59,8 +59,8 @@ breadcrumbs create <<'EOF'
 EOF
 ```
 
-`breadcrumbs --help` has the full draft schema and the other commands. Anchors are derived from the files, never written by hand.
+`virgil --help` has the full draft schema and the other commands. Anchors are derived from the files, never written by hand.
 
 Fix everything it warns about, or tell the reader why you left it. Re-running `create` with the same id rewrites the trail in place and the reader's open tabpage reloads, so revising is cheap.
 
-Finally, hand over the title and `:Breadcrumbs <id>` and stop. Summarising the trail back in the terminal rebuilds the wall of `file:line` prose the trail exists to replace. `breadcrumbs cursor <id>` reports which step they reached, if you need to know whether it landed.
+Finally, hand over the title and `:Virgil <id>` and stop. Summarising the trail back in the terminal rebuilds the wall of `file:line` prose the trail exists to replace. `virgil cursor <id>` reports which step they reached, if you need to know whether it landed.

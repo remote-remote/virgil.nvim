@@ -6,7 +6,7 @@
 -- cascade produced the answer, for the UI to explain itself.
 local M = {}
 
-M.ns = vim.api.nvim_create_namespace("breadcrumbs-anchors")
+M.ns = vim.api.nvim_create_namespace("virgil-anchors")
 
 M.RUNG_LABEL = {
   exact = "anchored",

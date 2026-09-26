@@ -1,7 +1,7 @@
 -- The trail's tabpage: a fixed-width panel on the left, the code on the right.
 -- Owns window lifecycle and teardown. Drawing lives in `panel` and `render`.
-local panel = require("breadcrumbs.panel")
-local render = require("breadcrumbs.render")
+local panel = require("virgil.panel")
+local render = require("virgil.render")
 
 local M = {}
 
@@ -10,7 +10,7 @@ local M = {}
 M.on_close = function() end
 
 local state = { tabpage = nil, panel_win = nil, code_win = nil, closing = false }
-local group = vim.api.nvim_create_augroup("BreadcrumbsView", { clear = true })
+local group = vim.api.nvim_create_augroup("VirgilView", { clear = true })
 
 local function win_alive(win, wins)
   return win ~= nil and vim.tbl_contains(wins, win)

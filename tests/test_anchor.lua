@@ -1,4 +1,4 @@
-local anchor = require("breadcrumbs.anchor")
+local anchor = require("virgil.anchor")
 
 local BASE = {
   "local M = {}",

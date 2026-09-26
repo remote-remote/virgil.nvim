@@ -1,34 +1,34 @@
 -- Code-side decoration: the highlighted range, its signs, and the narration as
 -- virtual lines. Replaceable when taste changes.
-local format = require("breadcrumbs.format")
+local format = require("virgil.format")
 
 local M = {}
 
-M.ns = vim.api.nvim_create_namespace("breadcrumbs-render")
+M.ns = vim.api.nvim_create_namespace("virgil-render")
 
 local GUTTER = "▌"
 
 local HIGHLIGHTS = {
-  BreadcrumbsNote = "DiagnosticInfo",
-  BreadcrumbsNoteDrifted = "DiagnosticWarn",
-  BreadcrumbsNoteBroken = "DiagnosticError",
-  BreadcrumbsRange = "Visual",
-  BreadcrumbsRangeDrifted = "DiffChange",
-  BreadcrumbsRangeBroken = "DiffDelete",
-  BreadcrumbsMeta = "Comment",
-  BreadcrumbsPanelTitle = "Title",
-  BreadcrumbsPanelCount = "Special",
-  BreadcrumbsPanelIndex = "LineNr",
-  BreadcrumbsPanelStep = "Normal",
-  BreadcrumbsPanelCurrent = "Title",
-  BreadcrumbsPanelMarker = "Special",
-  BreadcrumbsPanelPath = "Comment",
+  VirgilNote = "DiagnosticInfo",
+  VirgilNoteDrifted = "DiagnosticWarn",
+  VirgilNoteBroken = "DiagnosticError",
+  VirgilRange = "Visual",
+  VirgilRangeDrifted = "DiffChange",
+  VirgilRangeBroken = "DiffDelete",
+  VirgilMeta = "Comment",
+  VirgilPanelTitle = "Title",
+  VirgilPanelCount = "Special",
+  VirgilPanelIndex = "LineNr",
+  VirgilPanelStep = "Normal",
+  VirgilPanelCurrent = "Title",
+  VirgilPanelMarker = "Special",
+  VirgilPanelPath = "Comment",
 }
 
 local STYLE = {
-  exact = { note = "BreadcrumbsNote", range = "BreadcrumbsRange", sign = "▎" },
-  drifted = { note = "BreadcrumbsNoteDrifted", range = "BreadcrumbsRangeDrifted", sign = "▎" },
-  broken = { note = "BreadcrumbsNoteBroken", range = "BreadcrumbsRangeBroken", sign = "▎" },
+  exact = { note = "VirgilNote", range = "VirgilRange", sign = "▎" },
+  drifted = { note = "VirgilNoteDrifted", range = "VirgilRangeDrifted", sign = "▎" },
+  broken = { note = "VirgilNoteBroken", range = "VirgilRangeBroken", sign = "▎" },
 }
 
 local active = { bufnr = nil, start_line = nil }
@@ -42,7 +42,7 @@ end
 function M.setup()
   M.apply_highlights()
   vim.api.nvim_create_autocmd("ColorScheme", {
-    group = vim.api.nvim_create_augroup("BreadcrumbsHighlights", { clear = true }),
+    group = vim.api.nvim_create_augroup("VirgilHighlights", { clear = true }),
     callback = M.apply_highlights,
   })
 end
@@ -61,8 +61,8 @@ local function narration(view, width)
     push(line, style.note)
   end
   if view.detail then
-    push("", "BreadcrumbsMeta")
-    push(view.detail, "BreadcrumbsMeta")
+    push("", "VirgilMeta")
+    push(view.detail, "VirgilMeta")
   end
   return chunks
 end

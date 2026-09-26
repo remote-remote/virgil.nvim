@@ -1,9 +1,9 @@
-local store = require("breadcrumbs.store")
-local anchor = require("breadcrumbs.anchor")
-local trail = require("breadcrumbs.trail")
-local format = require("breadcrumbs.format")
-local render = require("breadcrumbs.render")
-local view = require("breadcrumbs.view")
+local store = require("virgil.store")
+local anchor = require("virgil.anchor")
+local trail = require("virgil.trail")
+local format = require("virgil.format")
+local render = require("virgil.render")
+local view = require("virgil.view")
 
 local M = {}
 
@@ -21,7 +21,7 @@ local initialized = false
 local init, on_disk_change
 
 local function notify(msg, level)
-  vim.notify("[breadcrumbs] " .. msg, level or vim.log.levels.INFO)
+  vim.notify("[virgil] " .. msg, level or vim.log.levels.INFO)
 end
 
 local function abs_path(step)
@@ -217,7 +217,7 @@ function M.to_quickfix()
       ),
     })
   end
-  local title = data.title or data.id or "breadcrumbs"
+  local title = data.title or data.id or "virgil"
 
   if view.is_current() then M.quit() end
   vim.fn.setqflist({}, " ", { title = title, items = items })

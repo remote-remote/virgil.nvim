@@ -1,4 +1,4 @@
-local format = require("breadcrumbs.format")
+local format = require("virgil.format")
 
 local function step(t)
   return vim.tbl_extend("force", { path = "src/auth.ts", note = "", range = { 1, 1 } }, t)
@@ -71,7 +71,7 @@ T.test("format: a drifted entry gets a right-aligned badge", function()
   T.eq(e.top, "  1 Checked too late")
   T.eq(#e.bottom, 30)
   T.eq(e.bottom:sub(e.badge_col + 1), "drift")
-  T.eq(e.badge_hl, "BreadcrumbsNoteDrifted")
+  T.eq(e.badge_hl, "VirgilNoteDrifted")
   T.eq(e.top:sub(1, 1), " ", "only the current step is marked")
 end)
 
