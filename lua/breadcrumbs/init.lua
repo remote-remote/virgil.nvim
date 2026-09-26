@@ -15,10 +15,10 @@ M.focus = {
   reveal = function() end,
 }
 
-local state = { root = nil, resolved = {} }
+local state = { root = nil, resolved = {}, watching = false }
 local initialized = false
--- Defined below, once the callbacks it registers exist.
-local init
+-- Defined below, once the callbacks they register exist.
+local init, on_disk_change
 
 local function notify(msg, level)
   vim.notify("[breadcrumbs] " .. msg, level or vim.log.levels.INFO)
@@ -105,6 +105,7 @@ end
 
 function M.start(data)
   if not initialized then init() end
+  if not state.watching then state.watching = store.watch(state.root, on_disk_change) end
   forget_anchors()
   trail.load(data)
   M.show()
@@ -223,7 +224,7 @@ function M.to_quickfix()
   vim.cmd("copen")
 end
 
-local function on_disk_change()
+function on_disk_change()
   if not trail.is_active() then return end
   local file = trail.data().__file
   local data, err = store.read(file)
@@ -241,7 +242,7 @@ function init(opts)
   render.setup()
   view.on_close = discard
   state.root = opts.root or store.repo_root()
-  store.watch(state.root, on_disk_change)
+  state.watching = store.watch(state.root, on_disk_change)
   initialized = true
 end
 
