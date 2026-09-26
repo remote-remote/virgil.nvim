@@ -1,7 +1,7 @@
-local store = require("breadcrumbs.store")
+local store = require("virgil.store")
 
 local cli = vim.fs.dirname(vim.fs.dirname(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p")))
-  .. "/bin/breadcrumbs"
+  .. "/bin/virgil"
 
 -- `list` on a root with no trails prints the directory it looked in.
 local function cli_trails_dir(root, env)
@@ -29,7 +29,7 @@ T.test("storage: plugin and CLI agree on the trails dir under XDG_DATA_HOME", fu
   local env = { PATH = vim.env.PATH, HOME = vim.fn.tempname(), XDG_DATA_HOME = vim.fn.tempname() }
   with_env(env, function()
     local dir = store.trails_dir(root)
-    T.eq(dir:sub(1, #env.XDG_DATA_HOME + 13), env.XDG_DATA_HOME .. "/breadcrumbs/")
+    T.eq(dir:sub(1, #env.XDG_DATA_HOME + 8), env.XDG_DATA_HOME .. "/virgil/")
     T.eq(cli_trails_dir(root, env), dir)
   end)
 end)
@@ -39,7 +39,7 @@ T.test("storage: plugin and CLI agree on the trails dir without XDG_DATA_HOME", 
   local env = { PATH = vim.env.PATH, HOME = vim.fn.tempname() }
   with_env(env, function()
     local dir = store.trails_dir(root)
-    T.eq(dir:sub(1, #env.HOME + 26), env.HOME .. "/.local/share/breadcrumbs/")
+    T.eq(dir:sub(1, #env.HOME + 21), env.HOME .. "/.local/share/virgil/")
     T.eq(cli_trails_dir(root, env), dir)
   end)
 end)

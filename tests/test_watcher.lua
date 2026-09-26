@@ -1,6 +1,6 @@
-local plugin = require("breadcrumbs")
-local store = require("breadcrumbs.store")
-local trail = require("breadcrumbs.trail")
+local plugin = require("virgil")
+local store = require("virgil.store")
+local trail = require("virgil.trail")
 
 T.test("watcher: attaches when the trails dir appears after setup", function()
   local root = vim.fn.tempname()

@@ -1,12 +1,12 @@
 -- The trail index: a nofile buffer listing every step with its live line and
 -- anchor status. Knows nothing about the code window; it draws a spec and maps
 -- keys back to the plugin.
-local format = require("breadcrumbs.format")
+local format = require("virgil.format")
 
 local M = {}
 
-M.ns = vim.api.nvim_create_namespace("breadcrumbs-panel")
-M.FILETYPE = "breadcrumbs-panel"
+M.ns = vim.api.nvim_create_namespace("virgil-panel")
+M.FILETYPE = "virgil-panel"
 M.WIDTH = 38
 
 M.WINOPTS = {
@@ -29,14 +29,14 @@ M.WINOPTS = {
   fillchars = "eob: ",
   statusline = " trail",
   -- A fresh split inherits whatever winbar the window it came from had, and
-  -- lspsaga's breadcrumb keeps setting one; the panel is not a code window.
+  -- lspsaga's symbol winbar keeps setting one; the panel is not a code window.
   winbar = "",
 }
 
 local state = { bufnr = nil, rows = {}, index = nil }
 
 local function plugin()
-  return require("breadcrumbs")
+  return require("virgil")
 end
 
 local function map(buf, lhs, rhs, desc)
@@ -83,7 +83,7 @@ function M.buf()
   vim.bo[buf].filetype = M.FILETYPE
   -- The name is what a tabline shows for this tab, so it says what the tab is
   -- rather than which of its two buffers happens to be focused.
-  pcall(vim.api.nvim_buf_set_name, buf, "breadcrumbs://trail")
+  pcall(vim.api.nvim_buf_set_name, buf, "virgil://trail")
   state.bufnr = buf
   keymaps(buf)
   return buf

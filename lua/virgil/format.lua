@@ -5,7 +5,7 @@ local M = {}
 local ELLIPSIS = "…"
 local MARKER = "▸"
 local BADGE = { drifted = "drift", broken = "broken" }
-local BADGE_HL = { drifted = "BreadcrumbsNoteDrifted", broken = "BreadcrumbsNoteBroken" }
+local BADGE_HL = { drifted = "VirgilNoteDrifted", broken = "VirgilNoteBroken" }
 
 local function cells(s)
   return vim.fn.strdisplaywidth(s)
@@ -181,10 +181,10 @@ function M.panel(spec, width)
   for i, text in ipairs(head.lines) do
     local row = push(text)
     if i == head.count_line then
-      mark(row, 0, head.count_col, "BreadcrumbsPanelTitle")
-      mark(row, head.count_col, #text, "BreadcrumbsPanelCount")
+      mark(row, 0, head.count_col, "VirgilPanelTitle")
+      mark(row, head.count_col, #text, "VirgilPanelCount")
     else
-      mark(row, 0, #text, "BreadcrumbsPanelTitle")
+      mark(row, 0, #text, "VirgilPanelTitle")
     end
   end
   push("")
@@ -198,14 +198,14 @@ function M.panel(spec, width)
     rows[row + 1] = e.index
     if current then
       current_row = row + 1
-      mark(row, 0, ent.marker_end, "BreadcrumbsPanelMarker")
+      mark(row, 0, ent.marker_end, "VirgilPanelMarker")
     end
-    mark(row, ent.number_col, ent.number_end, "BreadcrumbsPanelIndex")
-    mark(row, ent.title_col, #ent.top, current and "BreadcrumbsPanelCurrent" or "BreadcrumbsPanelStep")
+    mark(row, ent.number_col, ent.number_end, "VirgilPanelIndex")
+    mark(row, ent.title_col, #ent.top, current and "VirgilPanelCurrent" or "VirgilPanelStep")
 
     row = push(ent.bottom)
     rows[row + 1] = e.index
-    mark(row, 0, ent.badge_col or #ent.bottom, "BreadcrumbsPanelPath")
+    mark(row, 0, ent.badge_col or #ent.bottom, "VirgilPanelPath")
     if ent.badge_col then mark(row, ent.badge_col, #ent.bottom, ent.badge_hl) end
   end
 

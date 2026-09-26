@@ -1,4 +1,4 @@
-local store = require("breadcrumbs.store")
+local store = require("virgil.store")
 
 local function tmpdir()
   local dir = vim.fn.tempname()

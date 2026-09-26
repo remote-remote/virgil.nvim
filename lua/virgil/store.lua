@@ -36,7 +36,7 @@ function M.repo_root(start)
 end
 
 -- Trails live outside the repo they describe. The layout rule is documented
--- under "Storage" in the README, and bin/breadcrumbs derives the same path.
+-- under "Storage" in the README, and bin/virgil derives the same path.
 function M.data_home()
   local xdg = vim.env.XDG_DATA_HOME
   if xdg and xdg ~= "" then return xdg end
@@ -51,7 +51,7 @@ end
 
 function M.trails_dir(root)
   root = root or M.repo_root()
-  return M.data_home() .. "/breadcrumbs/" .. M.repo_key(root)
+  return M.data_home() .. "/virgil/" .. M.repo_key(root)
 end
 
 function M.validate(data)

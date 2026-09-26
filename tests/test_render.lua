@@ -1,4 +1,4 @@
-local render = require("breadcrumbs.render")
+local render = require("virgil.render")
 
 T.test("render: a mid-file step hangs its note above the range", function()
   local row, above = render.note_anchor(10, 14)

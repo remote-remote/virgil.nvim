@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Author a breadcrumb trail for the breadcrumbs nvim plugin.
+"""Author a trail for the virgil nvim plugin.
 
 A trail is an ordered walk through a flow: file, line range, title, note. It is
-compiled to $XDG_DATA_HOME/breadcrumbs/<repo-key>/<id>.json (see the README's
+compiled to $XDG_DATA_HOME/virgil/<repo-key>/<id>.json (see the README's
 "Storage" section), where nvim's watcher picks it up.
-The reader opens it with :Breadcrumbs and steps with :BreadcrumbsNext and
-:BreadcrumbsPrev.
+The reader opens it with :Virgil and steps with :VirgilNext and
+:VirgilPrev.
 
-  breadcrumbs create [--from FILE] [--root DIR] [--author NAME]
+  virgil create [--from FILE] [--root DIR] [--author NAME]
 
       Compile a draft (stdin, or --from) into a trail. The draft is JSON:
 
@@ -32,10 +32,10 @@ The reader opens it with :Breadcrumbs and steps with :BreadcrumbsNext and
       Re-running create on an existing id rewrites it, keeping created_at and
       the reader's cursor (clamped to the new step count).
 
-  breadcrumbs list                trails for this root, with step counts
-  breadcrumbs show ID             the compiled trail, as the panel will read it
-  breadcrumbs cursor ID [N]       the step the reader is on; with N, drive them
-  breadcrumbs rm ID               delete a trail
+  virgil list                trails for this root, with step counts
+  virgil show ID             the compiled trail, as the panel will read it
+  virgil cursor ID [N]       the step the reader is on; with N, drive them
+  virgil rm ID               delete a trail
 
 Nothing is written if any step fails validation. Warnings do not block a
 write, but each one is a trail that degrades badly once the file moves.
@@ -49,7 +49,7 @@ import sys
 import time
 import unicodedata
 
-PANEL_WIDTH = 38  # lua/breadcrumbs/format.lua
+PANEL_WIDTH = 38  # lua/virgil/format.lua
 MIN_STEPS, MAX_STEPS = 5, 12
 MAX_SPAN = 40
 
@@ -85,7 +85,7 @@ def data_home():
 
 
 def repo_key(root):
-    # Byte-for-byte what lua/breadcrumbs/store.lua does; the README's "Storage"
+    # Byte-for-byte what lua/virgil/store.lua does; the README's "Storage"
     # section is the rule both follow.
     raw = os.fsencode(root)
     base = re.sub(rb"[^A-Za-z0-9._-]", b"_", os.path.basename(raw)) or b"root"
@@ -93,7 +93,7 @@ def repo_key(root):
 
 
 def trails_dir(root):
-    return os.path.join(data_home(), "breadcrumbs", repo_key(root))
+    return os.path.join(data_home(), "virgil", repo_key(root))
 
 
 def slug(text):
@@ -336,7 +336,7 @@ def cmd_create(args):
         die("create takes no positional arguments (the draft is stdin or --from)")
 
     root = repo_root(flags.get("--root") or os.getcwd())
-    author = flags.get("--author") or os.environ.get("BREADCRUMBS_AUTHOR") or "agent"
+    author = flags.get("--author") or os.environ.get("VIRGIL_AUTHOR") or "agent"
 
     source = flags.get("--from")
     if source:
@@ -366,7 +366,7 @@ def cmd_create(args):
                      % ("updated" if existing else "wrote",
                         trail_path(root, trail["id"]), len(trail["steps"])))
     print_steps(trail)
-    sys.stdout.write("  open it with :Breadcrumbs %s\n" % trail["id"])
+    sys.stdout.write("  open it with :Virgil %s\n" % trail["id"])
     return 0
 
 
@@ -405,7 +405,7 @@ def cmd_list(args):
 def cmd_show(args):
     flags, rest = take_flags(args, ("--root",))
     if len(rest) != 1:
-        die("usage: breadcrumbs show ID")
+        die("usage: virgil show ID")
     root = repo_root(flags.get("--root") or os.getcwd())
     trail, path = read_trail(root, rest[0])
     sys.stdout.write("%s  (%s, %d steps, reader on %d)\n"
@@ -423,7 +423,7 @@ def cmd_show(args):
 def cmd_cursor(args):
     flags, rest = take_flags(args, ("--root",))
     if not rest or len(rest) > 2:
-        die("usage: breadcrumbs cursor ID [N]")
+        die("usage: virgil cursor ID [N]")
     root = repo_root(flags.get("--root") or os.getcwd())
     trail, path = read_trail(root, rest[0])
     total = len(trail.get("steps", []))
@@ -449,7 +449,7 @@ def cmd_cursor(args):
 def cmd_rm(args):
     flags, rest = take_flags(args, ("--root",))
     if len(rest) != 1:
-        die("usage: breadcrumbs rm ID")
+        die("usage: virgil rm ID")
     root = repo_root(flags.get("--root") or os.getcwd())
     _, path = read_trail(root, rest[0])
     os.remove(path)
