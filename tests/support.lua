@@ -42,6 +42,15 @@ function M.cli(root, args, stdin, env)
   return r.code, r.stdout, r.stderr
 end
 
+-- Replaces `tbl[key]` for the length of `fn`, e.g. to answer vim.ui.input.
+function M.stub(tbl, key, value, fn)
+  local saved = tbl[key]
+  tbl[key] = value
+  local ok, err = pcall(fn)
+  tbl[key] = saved
+  if not ok then error(err, 0) end
+end
+
 -- Leaves no loaded buffer, trail file or tab behind a test that opened a trail.
 function M.cleanup(root)
   pcall(require("virgil").quit)

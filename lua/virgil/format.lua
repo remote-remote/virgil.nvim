@@ -189,6 +189,10 @@ function M.panel(spec, width)
       mark(row, 0, #text, "VirgilPanelTitle")
     end
   end
+  if spec.notice then
+    local text = " " .. M.truncate(spec.notice, width - 1)
+    mark(push(text), 1, #text, "VirgilNoteBroken")
+  end
   push("")
 
   local numw = #tostring(math.max(spec.total, 1))

@@ -15,6 +15,11 @@ local LUA = {
   "  return ok",
   "end",
   "",
+  "local function close(fd)",
+  "  fd:close()",
+  "  fd:close()",
+  "end",
+  "",
   "return M",
 }
 
@@ -61,6 +66,8 @@ T.test("capture: a repeated first line is scoped by its enclosing symbol", funct
     local loc = assert(capture.location(buf, 9, 10, root))
     T.eq(loc.anchor, { text = "  local ok = check(user)", symbol = "M.logout" })
     T.eq(loc.warnings, {})
+    -- A method call has a name too, but it is not a scope.
+    T.eq(assert(capture.location(buf, 14, 14, root)).anchor, { text = "  fd:close()", symbol = "close" })
   end)
 end)
 

@@ -6,6 +6,7 @@ local render = require("virgil.render")
 local view = require("virgil.view")
 local capture = require("virgil.capture")
 local editor = require("virgil.editor")
+local pick = require("virgil.pick")
 
 local M = {}
 
@@ -21,7 +22,13 @@ M.focus = {
 -- stays readable, but nothing writes to it until the file comes back.
 -- `edited` is the step the step editor has open: its index now, and the step
 -- as the file held it when the editor opened or last saved.
-local state = { root = nil, resolved = {}, watching = false, deleted = false, edited = nil, preview = nil }
+-- `undo`/`redo` hold { title, steps, index } snapshots of this session's own
+-- edits, and `held` the step `dd` took. `reload_pending` is an external write
+-- that arrived while the reader was picking lines.
+local state = {
+  root = nil, resolved = {}, watching = false, deleted = false, edited = nil, preview = nil,
+  undo = {}, redo = {}, held = nil, reload_pending = false,
+}
 local initialized = false
 -- Defined below, once the callbacks they register exist.
 local init, on_disk_change, reload
@@ -109,6 +116,7 @@ function M.show(opts)
     },
     panel = {
       title = data.title or data.id or "trail",
+      notice = state.deleted and "deleted on disk" or nil,
       index = index,
       total = trail.count(),
       entries = entries(),
@@ -167,9 +175,18 @@ local function carry_anchors(order, recaptured)
   for _, result in pairs(old) do anchor.forget(result) end
 end
 
+-- After a change nobody mapped step by step, find the edited step by content.
+local function refind_edited(steps)
+  local ed = state.edited
+  if not ed then return end
+  ed.index = find_step(steps, ed.original, ed.index) or find_step(steps, ed.original, ed.index, same_place)
+  if state.preview then state.preview.index = ed.index end
+end
+
 local function follow_edited(order, steps)
   local ed = state.edited
   if not ed then return end
+  if not order then return refind_edited(steps) end
   for i, from in ipairs(order) do
     if from == ed.index then
       ed.index = i - 1
@@ -180,15 +197,27 @@ local function follow_edited(order, steps)
   ed.index = nil
 end
 
--- opts.order     how the new step list maps onto the old one (default: same)
+local function snapshot()
+  local data = trail.data()
+  return { title = data.title, steps = vim.deepcopy(data.steps), index = trail.index() }
+end
+
+-- opts.order      how the new step list maps onto the old one (default: the
+--                 same; false: unknown, so live anchors are dropped)
 -- opts.recaptured new indices whose location was picked again
--- opts.index     the step to show afterwards
--- opts.check     false skips the revision check, for a change that finds its
---                own step in whatever is on disk
+-- opts.index      the step to show afterwards
+-- opts.check      false skips the revision check, for a change that finds its
+--                 own step in whatever is on disk
+-- opts.record     false keeps the change off the undo stack
 local function commit(change, opts)
   opts = opts or {}
+  if state.deleted then
+    notify("the trail file is gone; nothing was saved", WARN)
+    return nil
+  end
   local data = trail.data()
   local before = store.rev(data)
+  local undo = opts.record ~= false and snapshot() or nil
   local saved, err, kind = store.save(data.__file, opts.check ~= false and before or nil, function(fresh)
     local e = change(fresh)
     if e then return e end
@@ -206,12 +235,20 @@ local function commit(change, opts)
     return nil, err
   end
   if store.rev(saved) == before + 1 then
-    local order = opts.order or identity(#data.steps)
-    carry_anchors(order, opts.recaptured)
-    follow_edited(order, saved.steps)
+    local order = opts.order
+    if order == nil then order = identity(#data.steps) end
+    if order then carry_anchors(order, opts.recaptured) else forget_anchors() end
+    follow_edited(order or nil, saved.steps)
+    if undo then
+      table.insert(state.undo, undo)
+      state.redo = {}
+    end
   else
-    -- Someone else wrote in between and this change was merged onto theirs.
+    -- Someone else wrote in between and this change was merged onto theirs,
+    -- so the snapshots no longer describe the file.
     forget_anchors()
+    refind_edited(saved.steps)
+    state.undo, state.redo = {}, {}
   end
   trail.load(saved)
   M.show({ keep_cursor = opts.keep_cursor })
@@ -282,9 +319,13 @@ local function open_editor(index)
   if is_blank(step.title) then vim.cmd("startinsert!") end
 end
 
-function M.edit()
+-- `index` defaults to the current step; another one becomes current first, so
+-- the note being written is the one on screen.
+function M.edit(index)
   if not trail.is_active() then return notify("no active trail", WARN) end
-  open_editor(trail.index())
+  index = index or trail.index()
+  if index ~= trail.index() then M.jump(index) end
+  open_editor(index)
 end
 
 -- The lines a command or mapping was given, else the cursor line.
@@ -310,7 +351,7 @@ local function new_step(loc)
 end
 
 -- opts: line1, line2 (default: the cursor line), bufnr, quick (a stub, no
--- editor), at_end (append rather than insert after the current step).
+-- editor), after (the step to insert after, default the current one), at_end.
 function M.add(opts)
   opts = opts or {}
   if not initialized then init() end
@@ -319,7 +360,7 @@ function M.add(opts)
   local data = trail.data()
   local loc = locate(opts, store.realpath(data.root) or data.root)
   if not loc then return end
-  local at = opts.at_end and #data.steps or trail.index() + 1
+  local at = opts.at_end and #data.steps or (opts.after or trail.index()) + 1
   local order = identity(#data.steps)
   table.insert(order, at + 1, false)
   local saved = commit(function(fresh)
@@ -369,6 +410,239 @@ function M.new(title, opts)
   vim.ui.input({ prompt = "Trail title: " }, create)
 end
 
+-- Panel verbs. Each acts on one step and saves at once.
+
+local function active_step(index)
+  if not trail.is_active() then
+    notify("no active trail", WARN)
+    return nil
+  end
+  index = index or trail.index()
+  if not trail.step(index) then return nil end
+  return index
+end
+
+-- The step's lines as the reader sees them: where it was found, or where the
+-- trail says it is when it was not found at all.
+local function live_lines(index)
+  local step = trail.step(index)
+  local result = resolve(index, step)
+  local first = result.start_line or step.range[1]
+  local last = result.end_line or step.range[2] or first
+  return first, math.max(first, last), result
+end
+
+local function set_location(index, loc)
+  return commit(function(fresh)
+    local step = fresh.steps[index + 1]
+    step.path, step.range, step.anchor = loc.path, loc.range, loc.anchor
+  end, { index = index, recaptured = { [index] = true } })
+end
+
+-- :VirgilRange: move the current step to the given lines.
+function M.set_range(opts)
+  opts = opts or {}
+  local index = active_step(opts.index)
+  if not index then return end
+  local data = trail.data()
+  local loc = locate(opts, store.realpath(data.root) or data.root)
+  if loc then return set_location(index, loc) end
+end
+
+local function code_window_for(index)
+  if not view.is_open() then return nil end
+  if index and index ~= trail.index() then M.jump(index) end
+  return view.code_win()
+end
+
+local function start_pick(win, opts)
+  local on_done = opts.on_done
+  pick.start(win, {
+    message = opts.message,
+    select = opts.select,
+    on_done = on_done,
+    on_end = function()
+      if state.reload_pending then
+        state.reload_pending = false
+        reload()
+      end
+    end,
+  })
+end
+
+-- `a` and `A` in the panel: pick lines in the code window for a new step.
+function M.pick_add(index, at_end)
+  index = active_step(index)
+  if not index then return end
+  local win = code_window_for(index)
+  if not win then return end
+  local where = at_end and "at the end" or ("after " .. (index + 1))
+  start_pick(win, {
+    message = "lines for a new step " .. where,
+    on_done = function(bufnr, line1, line2)
+      M.add({ bufnr = bufnr, line1 = line1, line2 = line2, after = index, at_end = at_end })
+    end,
+  })
+end
+
+-- `R` in the panel: the step's lines, preselected, for the reader to adjust.
+function M.pick_range(index)
+  index = active_step(index)
+  if not index then return end
+  local win = code_window_for(index)
+  if not win then return end
+  local first, last = live_lines(index)
+  start_pick(win, {
+    message = ("new lines for step %d"):format(index + 1),
+    select = { first, last },
+    on_done = function(bufnr, line1, line2)
+      M.set_range({ index = index, bufnr = bufnr, line1 = line1, line2 = line2 })
+    end,
+  })
+end
+
+-- `=`: take the place a drifted step was found by its anchor text as its
+-- location. A step found only by its symbol has no such place.
+function M.accept_drift(index)
+  index = active_step(index)
+  if not index then return end
+  local first, last, result = live_lines(index)
+  if result.status == "exact" then return notify("step " .. (index + 1) .. " is already where the trail says") end
+  if result.status == "broken" then
+    return notify("step " .. (index + 1) .. " was not found; pick its lines with R", WARN)
+  end
+  if result.rung == "symbol_only" then
+    return notify("only the symbol of step " .. (index + 1) .. " was found; pick its lines with R", WARN)
+  end
+  local data = trail.data()
+  local loc, err = capture.location(result.bufnr, first, last, store.realpath(data.root) or data.root)
+  if not loc then return notify("cannot re-anchor: " .. err, WARN) end
+  for _, w in ipairs(loc.warnings) do notify(w, WARN) end
+  return set_location(index, loc)
+end
+
+-- `r`: a one-line retitle.
+function M.retitle(index)
+  index = active_step(index)
+  if not index then return end
+  vim.ui.input({ prompt = "Step title: ", default = trail.step(index).title or "" }, function(title)
+    if title == nil then return end
+    commit(function(fresh) fresh.steps[index + 1].title = vim.trim(title) end, { keep_cursor = true })
+  end)
+end
+
+-- :VirgilRename and `r` on the panel header. The id, and so the file name and
+-- every `:Virgil <id>`, stay the same.
+function M.rename(title)
+  if not trail.is_active() then return notify("no active trail", WARN) end
+  local function apply(t)
+    t = vim.trim(t or "")
+    if t == "" then return end
+    commit(function(fresh) fresh.title = t end, { keep_cursor = true })
+  end
+  if title and vim.trim(title) ~= "" then return apply(title) end
+  vim.ui.input({ prompt = "Trail title: ", default = trail.data().title or "" }, apply)
+end
+
+-- `dd`: delete the step and hold it for `p`/`P`.
+function M.delete_step(index)
+  index = active_step(index)
+  if not index then return end
+  local n = trail.count()
+  if n == 1 then
+    return notify("a trail needs a step; use :VirgilDelete to delete the whole trail", WARN)
+  end
+  local held = vim.deepcopy(trail.step(index))
+  local order = identity(n)
+  table.remove(order, index + 1)
+  local saved = commit(function(fresh) table.remove(fresh.steps, index + 1) end, {
+    order = order,
+    index = math.min(index, n - 2),
+  })
+  if saved then state.held = held end
+  return saved
+end
+
+-- `p` / `P`: put the held step after / before a step. Its anchor comes with it.
+function M.put(index, before)
+  index = active_step(index)
+  if not index then return end
+  if not state.held then return notify("no step held; dd holds one", WARN) end
+  local at = before and index or index + 1
+  local order = identity(trail.count())
+  table.insert(order, at + 1, false)
+  local step = vim.deepcopy(state.held)
+  return commit(function(fresh) table.insert(fresh.steps, at + 1, step) end, { order = order, index = at })
+end
+
+-- `J` / `K`: move a step down or up by `delta` places.
+function M.move(index, delta)
+  index = active_step(index)
+  if not index then return end
+  local n = trail.count()
+  local to = math.max(0, math.min(n - 1, index + delta))
+  if to == index then return end
+  local order = identity(n)
+  table.insert(order, to + 1, table.remove(order, index + 1))
+  return commit(function(fresh)
+    table.insert(fresh.steps, to + 1, table.remove(fresh.steps, index + 1))
+  end, { order = order, index = to })
+end
+
+local function restore(from, to)
+  local snap = table.remove(from)
+  if not snap then return false end
+  local current = snapshot()
+  local saved = commit(function(fresh)
+    fresh.title = snap.title
+    fresh.steps = vim.deepcopy(snap.steps)
+  end, { order = false, index = math.min(snap.index, #snap.steps - 1), record = false })
+  if saved then table.insert(to, current) end
+  return true
+end
+
+-- `u` / `<C-r>`: step back and forth through this session's edits. Each one is
+-- an ordinary content write; an edit from outside clears both stacks.
+function M.undo()
+  if not trail.is_active() then return end
+  if not restore(state.undo, state.redo) then notify("nothing to undo") end
+end
+
+function M.redo()
+  if not trail.is_active() then return end
+  if not restore(state.redo, state.undo) then notify("nothing to redo") end
+end
+
+-- :VirgilDelete: the active trail, or the one named, after a confirmation.
+function M.delete(id)
+  if not initialized then init() end
+  local function remove(t)
+    local label = t.title or t.id
+    local choice = vim.fn.confirm(("Delete trail %q permanently?"):format(label), "&Delete\n&Cancel", 2)
+    if choice ~= 1 then return end
+    local file = t.__file
+    if trail.is_active() and trail.data().__file == file then M.quit() end
+    local ok, err = store.delete(file)
+    if not ok then return notify("could not delete: " .. tostring(err), WARN) end
+    notify("deleted " .. label)
+  end
+  if (not id or id == "") and trail.is_active() then return remove(trail.data()) end
+  local trails = store.list(state.root)
+  if id and id ~= "" then
+    for _, t in ipairs(trails) do
+      if t.id == id then return remove(t) end
+    end
+    return notify("no trail with id " .. id, WARN)
+  end
+  if #trails == 0 then return notify("no trails to delete", WARN) end
+  vim.ui.select(trails, {
+    prompt = "Delete trail",
+    format_item = function(t) return ("%s  (%d steps)"):format(t.title or t.id, #t.steps) end,
+  }, function(choice)
+    if choice then remove(choice) end
+  end)
+end
+
 function M.start(data)
   if not initialized then init() end
   if editor.is_modified() then
@@ -413,9 +687,11 @@ end
 -- The teardown half of quit, without touching the windows: `view` calls this
 -- when the tab or one of its windows is closed behind our back.
 local function discard()
+  if pick.active() then pick.cancel() end
   if editor.is_open() then editor.close() end
   forget_anchors()
   state.deleted, state.edited, state.preview = false, nil, nil
+  state.undo, state.redo, state.held, state.reload_pending = {}, {}, nil, false
   trail.unload()
 end
 
@@ -516,13 +792,11 @@ function reload()
     return
   end
   state.deleted = false
+  state.undo, state.redo = {}, {}
   forget_anchors()
   trail.load(data)
-  local ed = state.edited
-  if ed then
-    ed.index = find_step(data.steps, ed.original, ed.index)
-      or find_step(data.steps, ed.original, ed.index, same_place)
-    if state.preview then state.preview.index = ed.index end
+  if state.edited then
+    refind_edited(data.steps)
     editor.mark_stale()
   end
   M.show({ keep_cursor = true })
@@ -532,6 +806,11 @@ end
 function on_disk_change(paths)
   if not trail.is_active() then return end
   if paths and not vim.tbl_contains(paths, trail.data().__file) then return end
+  -- A redraw would move the code window's cursor and lose the selection.
+  if pick.active() then
+    state.reload_pending = true
+    return
+  end
   reload()
 end
 

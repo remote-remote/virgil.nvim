@@ -39,8 +39,14 @@ local function plugin()
   return require("virgil")
 end
 
+-- Every panel key with its description, in the order `g?` lists them.
+local KEYS = {}
+
 local function map(buf, lhs, rhs, desc)
   vim.keymap.set("n", lhs, rhs, { buffer = buf, nowait = true, silent = true, desc = desc })
+  if not vim.tbl_contains(vim.tbl_map(function(k) return k[1] end, KEYS), lhs) then
+    table.insert(KEYS, { lhs, (desc:gsub("^Trail: ", "")) })
+  end
 end
 
 function M.step_at(lnum)
@@ -50,6 +56,11 @@ end
 local function keymaps(buf)
   local function under_cursor()
     return M.step_at(vim.api.nvim_win_get_cursor(0)[1])
+  end
+  -- The step a verb acts on: the one under the cursor, or the current step
+  -- when the cursor is on the header.
+  local function target()
+    return under_cursor() or state.index
   end
   local function move(delta)
     local i = under_cursor() or state.index
@@ -67,8 +78,32 @@ local function keymaps(buf)
   end, "Trail: show step, stay in panel")
   map(buf, "]t", function() plugin().next() end, "Trail: next step")
   map(buf, "[t", function() plugin().prev() end, "Trail: previous step")
+  map(buf, "e", function() plugin().edit(target()) end, "Trail: edit this step's title and note")
+  map(buf, "r", function()
+    local i = under_cursor()
+    if i then plugin().retitle(i) else plugin().rename() end
+  end, "Trail: retitle this step, or the trail on the header")
+  map(buf, "a", function() plugin().pick_add(target()) end, "Trail: add a step after this one")
+  map(buf, "A", function() plugin().pick_add(target(), true) end, "Trail: add a step at the end")
+  map(buf, "R", function() plugin().pick_range(target()) end, "Trail: re-range this step")
+  map(buf, "=", function() plugin().accept_drift(target()) end, "Trail: accept drift, re-anchor where found")
+  map(buf, "dd", function() plugin().delete_step(target()) end, "Trail: delete this step and hold it")
+  map(buf, "p", function() plugin().put(target(), false) end, "Trail: put the held step after this one")
+  map(buf, "P", function() plugin().put(target(), true) end, "Trail: put the held step before this one")
+  map(buf, "J", function() plugin().move(target(), vim.v.count1) end, "Trail: move this step down")
+  map(buf, "K", function() plugin().move(target(), -vim.v.count1) end, "Trail: move this step up")
+  map(buf, "u", function() plugin().undo() end, "Trail: undo the last edit")
+  map(buf, "<C-r>", function() plugin().redo() end, "Trail: redo")
   map(buf, "q", function() plugin().quit() end, "Trail: quit")
   map(buf, "Q", function() plugin().to_quickfix() end, "Trail: dump to quickfix")
+  map(buf, "g?", function() M.help() end, "Trail: show the panel's keys")
+end
+
+function M.help()
+  M.buf()
+  local chunks = { { "virgil panel keys\n", "Title" } }
+  for _, k in ipairs(KEYS) do table.insert(chunks, { ("%-6s %s\n"):format(k[1], k[2]) }) end
+  vim.api.nvim_echo(chunks, false, {})
 end
 
 function M.buf()

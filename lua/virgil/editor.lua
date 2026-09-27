@@ -7,8 +7,9 @@ local ns = vim.api.nvim_create_namespace("virgil-editor")
 local FOOTER = " :w save · q close · line 1 is the title "
 local STALE_FOOTER = " trail changed on disk · :w saves if this step is unchanged · :w! overwrites it "
 
--- One editor at a time. `opts` is what `open` was given.
-local state = { buf = nil, win = nil, opts = nil }
+-- One editor at a time. `opts` is what `open` was given, and `from` the
+-- window to return to.
+local state = { buf = nil, win = nil, opts = nil, from = nil }
 
 function M.is_open()
   return state.buf ~= nil and vim.api.nvim_buf_is_valid(state.buf)
@@ -57,8 +58,12 @@ end
 function M.close()
   local win, buf = state.win, state.buf
   local on_close = state.opts and state.opts.on_close
-  state.buf, state.win, state.opts = nil, nil, nil
+  local back = state.from
+  state.buf, state.win, state.opts, state.from = nil, nil, nil, nil
   if win and vim.api.nvim_win_is_valid(win) then pcall(vim.api.nvim_win_close, win, true) end
+  if back and vim.api.nvim_win_is_valid(back) and vim.api.nvim_get_current_win() ~= back then
+    pcall(vim.api.nvim_set_current_win, back)
+  end
   if buf and vim.api.nvim_buf_is_valid(buf) then pcall(vim.api.nvim_buf_delete, buf, { force = true }) end
   if on_close then on_close() end
 end
@@ -114,6 +119,7 @@ end
 --   on_close()
 function M.open(opts)
   if M.is_open() then M.close() end
+  local from = vim.api.nvim_get_current_win()
   local buf = vim.api.nvim_create_buf(false, true)
   vim.bo[buf].buftype = "acwrite"
   vim.bo[buf].bufhidden = "wipe"
@@ -139,7 +145,7 @@ function M.open(opts)
   local win = vim.api.nvim_open_win(buf, true, config)
   vim.wo[win].wrap = true
   vim.wo[win].linebreak = true
-  state.buf, state.win, state.opts = buf, win, opts
+  state.buf, state.win, state.opts, state.from = buf, win, opts, from
 
   local group = vim.api.nvim_create_augroup("VirgilEditor", { clear = true })
   vim.api.nvim_create_autocmd("BufWriteCmd", {
@@ -161,7 +167,7 @@ function M.open(opts)
     callback = function()
       if state.buf == buf then
         local on_close = state.opts and state.opts.on_close
-        state.buf, state.win, state.opts = nil, nil, nil
+        state.buf, state.win, state.opts, state.from = nil, nil, nil, nil
         if on_close then vim.schedule(on_close) end
       end
     end,

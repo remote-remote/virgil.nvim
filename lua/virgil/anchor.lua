@@ -182,7 +182,10 @@ function M.enclosing_symbol(bufnr, line)
   local col = math.max((text:find("%S") or 1) - 1, 0)
   local node = trees[1]:root():named_descendant_for_range(line - 1, col, line - 1, col)
   while node do
-    local named = is_declaration(node:type()) and node:field("name")[1]
+    -- A call has a `name` field too (`fd:close()`), and "function_call"
+    -- matches the declaration needles, but a call scopes nothing.
+    local kind = node:type()
+    local named = is_declaration(kind) and not kind:find("call", 1, true) and node:field("name")[1]
     if named then
       local ok, name = pcall(vim.treesitter.get_node_text, named, bufnr)
       if ok and name ~= "" and not name:find("\n") then

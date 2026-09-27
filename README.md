@@ -21,7 +21,7 @@ Requires Neovim 0.10 or newer. With [lazy.nvim](https://github.com/folke/lazy.nv
   "remote-remote/virgil.nvim",
   cmd = {
     "Virgil", "VirgilQuit", "VirgilNext", "VirgilPrev", "VirgilSteps", "VirgilQuickfix", "VirgilInstall",
-    "VirgilNew", "VirgilAdd", "VirgilEdit",
+    "VirgilNew", "VirgilAdd", "VirgilEdit", "VirgilRange", "VirgilRename", "VirgilDelete",
   },
   opts = {},
 }
@@ -45,9 +45,31 @@ For a local checkout, replace the first line with `dir = "~/code/virgil.nvim"`.
 | `:VirgilAdd` | Add the current line or selection as a step after the current one, then edit it. With no trail open, pick one or start a new one. |
 | `:VirgilAdd!` | Quick pin: add the step with no title or note, without opening the editor. |
 | `:VirgilEdit` | Edit the current step's title and note. |
+| `:VirgilRange` | Move the current step to the current line or selection. Its anchor is taken from the new first line. |
+| `:VirgilRename [title]` | Retitle the active trail. The id and file name stay the same. |
+| `:VirgilDelete [id]` | Delete the active trail, or the one named, after a confirmation. This cannot be undone. |
 | `:VirgilInstall {dir} ...` | Link the agent skill into the given skills directories. See [Install the skill and the CLI](#install-the-skill-and-the-cli). |
 
-Inside the index panel: `j` / `k` preview the next or previous step, `<CR>` goes to the step's code, `o` shows it without leaving the panel, `]t` / `[t` step, `q` quits and `Q` dumps to quickfix.
+Inside the index panel, keys act on the step under the cursor, or the current step when the cursor is on the header. Each edit is saved at once.
+
+| Key | Action |
+| --- | --- |
+| `j` / `k` | Preview the next or previous step. |
+| `<CR>` | Go to the step's code. |
+| `o` | Show the step without leaving the panel. |
+| `]t` / `[t` | Next or previous step. |
+| `e` | Edit the step's title and note. |
+| `r` | Retitle the step, or rename the trail when the cursor is on the header. |
+| `a` / `A` | Add a step after this one, or at the end. Pick the lines in the code window, then `<CR>`, or `<Esc>` to cancel. |
+| `R` | Re-range the step. Its lines are preselected in the code window. Adjust them, then `<CR>`. |
+| `=` | Accept drift: move a drifted step to where its anchor text was found. |
+| `dd` | Delete the step and hold it. |
+| `p` / `P` | Put the held step after or before this one. |
+| `J` / `K` | Move the step down or up. Takes a count. |
+| `u` / `<C-r>` | Undo or redo this session's edits. |
+| `q` | Quit the trail. |
+| `Q` | Dump the trail into the quickfix list. |
+| `g?` | List these keys. |
 
 ## Writing trails by hand
 
@@ -57,7 +79,13 @@ A step with no note yet is a stub. The panel marks it `stub`, and the code windo
 
 The step editor is a floating buffer over the code. Line 1 is the step's title, and the note starts on line 3. `:w` saves, `q` closes and asks first if there is unsaved text, and `ZZ` saves and closes. The number at the end of line 1 is the title's width against what the panel shows. The note in the code window follows what you type.
 
-Every edit is saved to the trail file at once. If an agent rewrites the trail while the editor is open, the editor's border says so. `:w` still saves when the step you are editing is unchanged in the new file, wherever it moved to. Otherwise `:w` refuses and keeps your text, and `:w!` overwrites that step.
+If an agent rewrites the trail while the editor is open, the editor's border says so. `:w` still saves when the step you are editing is unchanged in the new file, wherever it moved to. Otherwise `:w` refuses and keeps your text, and `:w!` overwrites that step.
+
+Every edit is saved to the trail file at once, based on the revision the plugin last read. If an agent wrote the trail in between, the edit is refused, the trail reloads, and you press the key again.
+
+Repairing a trail uses the same keys. For a drifted step, `R` preselects the lines where the step was found, so `R` then `<CR>` re-anchors it there, and `=` does the same in one key when the step was found by its anchor text. A step found only by its symbol has changed inside, so it needs `R`. A broken step has no place in the file, so `R` preselects its stored lines as a starting point.
+
+Undo keeps this session's edits in memory, and each undo or redo is saved like any other edit. A write from outside Neovim, such as an agent's `virgil create`, clears the undo history, because the old snapshots no longer describe the file. If the trail file is deleted while it is open, the panel says "deleted on disk", edits and cursor writes stop, and the trail reloads if the file comes back.
 
 ## Suggested keymaps
 
@@ -73,6 +101,7 @@ keys = {
   { "<leader>Tx", function() require("virgil").quit() end,        desc = "Trail: quit" },
   { "<leader>Tn", ":VirgilNew<CR>",       mode = { "n", "x" }, desc = "Trail: new trail from here" },
   { "<leader>Ta", ":VirgilAdd<CR>",       mode = { "n", "x" }, desc = "Trail: add a step here" },
+  { "<leader>Tr", ":VirgilRange<CR>",     mode = "x",          desc = "Trail: move the step to these lines" },
   { "<leader>Te", "<cmd>VirgilEdit<CR>",                         desc = "Trail: edit this step" },
 },
 ```
