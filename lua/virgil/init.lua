@@ -311,7 +311,7 @@ local function open_editor(index)
     return
   end
   local edited = { index = index, original = vim.deepcopy(step) }
-  state.edited = edited
+  state.edited, state.preview = edited, nil
   editor.open({
     name = ("virgil://%s/%d"):format(data.id or "trail", index + 1),
     heading = ("step %d/%d · %s"):format(index + 1, #data.steps, data.title or data.id or "trail"),
