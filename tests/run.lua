@@ -6,6 +6,8 @@ package.path = luadir .. "/?.lua;" .. luadir .. "/?/init.lua;" .. package.path
 
 -- Trails are written under the data dir, so keep the suite out of the real one.
 vim.env.XDG_DATA_HOME = vim.fn.tempname()
+-- --noplugin skips plugin/, and the editing tests drive the user commands.
+dofile(vim.fs.dirname(here) .. "/plugin/virgil.lua")
 
 _G.T = { _tests = {} }
 

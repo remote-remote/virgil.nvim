@@ -4,8 +4,8 @@ local M = {}
 
 local ELLIPSIS = "…"
 local MARKER = "▸"
-local BADGE = { drifted = "drift", broken = "broken" }
-local BADGE_HL = { drifted = "VirgilNoteDrifted", broken = "VirgilNoteBroken" }
+local BADGE = { drifted = "drift", broken = "broken", stub = "stub" }
+local BADGE_HL = { drifted = "VirgilNoteDrifted", broken = "VirgilNoteBroken", stub = "VirgilMeta" }
 
 local function cells(s)
   return vim.fn.strdisplaywidth(s)
@@ -116,7 +116,9 @@ function M.entry(e, opts)
   local top = marker .. " " .. number .. " " .. title
 
   local indent = (" "):rep(numw + 3)
-  local badge = BADGE[e.status]
+  -- An anchor problem outranks a missing note: it is the one to fix first.
+  local kind = BADGE[e.status] and e.status or (e.stub and "stub") or nil
+  local badge = BADGE[kind]
   local room = width - #indent - (badge and (#badge + 1) or 0)
   local bottom = indent .. path_label(e.step.path or "", e.line, math.max(room, 4))
   local badge_col
@@ -135,7 +137,7 @@ function M.entry(e, opts)
     number_end = number_end,
     title_col = title_col,
     badge_col = badge_col,
-    badge_hl = badge and BADGE_HL[e.status] or nil,
+    badge_hl = badge and BADGE_HL[kind] or nil,
   }
 end
 
@@ -186,6 +188,10 @@ function M.panel(spec, width)
     else
       mark(row, 0, #text, "VirgilPanelTitle")
     end
+  end
+  if spec.notice then
+    local text = " " .. M.truncate(spec.notice, width - 1)
+    mark(push(text), 1, #text, "VirgilNoteBroken")
   end
   push("")
 

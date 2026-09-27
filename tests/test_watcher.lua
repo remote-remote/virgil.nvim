@@ -38,3 +38,71 @@ T.test("watcher: attaches when the trails dir appears after setup", function()
   vim.fn.delete(root, "rf")
   if not ok then error(err, 0) end
 end)
+
+local S = dofile(vim.fs.dirname(debug.getinfo(1, "S").source:sub(2)) .. "/support.lua")
+
+local function with_open_trail(fn)
+  local lines = { "local first = 1", "local second = 2", "return first + second" }
+  local root = S.repo({ ["a.lua"] = lines })
+  local ok, err = xpcall(function()
+    plugin.setup({ root = root })
+    local dir = store.trails_dir(root)
+    local function trail_data(id, title)
+      return {
+        id = id, title = title, root = root,
+        steps = {
+          { path = "a.lua", range = { 1, 1 }, anchor = { text = lines[1] }, title = "One", note = "n" },
+          { path = "a.lua", range = { 2, 2 }, anchor = { text = lines[2] }, title = "Two", note = "n" },
+        },
+      }
+    end
+    local file = dir .. "/open.json"
+    plugin.start(assert(store.create(file, trail_data("open", "before"))))
+    fn(root, file, dir, trail_data)
+  end, debug.traceback)
+  S.cleanup(root)
+  if not ok then error(err, 0) end
+end
+
+T.test("watcher: another trail changing does not reload the open one", function()
+  with_open_trail(function(_, _, dir, trail_data)
+    local loaded = trail.data()
+    assert(store.create(dir .. "/other.json", trail_data("other", "other")))
+    S.write(dir .. "/other.json", S.read(dir .. "/other.json"):gsub('"other"', '"changed"'))
+    vim.wait(400)
+    T.ok(trail.data() == loaded, "the open trail was not reloaded")
+  end)
+end)
+
+T.test("watcher: the plugin's own save does not reload, a CLI rewrite does", function()
+  with_open_trail(function(root, file)
+    assert(store.save(file, store.rev(trail.data()), function(data) data.title = "saved" end))
+    local loaded = trail.data()
+    vim.wait(400)
+    T.ok(trail.data() == loaded, "own write is an echo")
+
+    local draft = vim.json.encode({ id = "open", title = "from the cli", steps = {
+      { path = "a.lua", range = { 3, 3 }, title = "Three", note = "n" },
+    } })
+    local code, _, stderr = S.cli(root, { "create", "--root", root, "--expect-rev", "2" }, draft)
+    T.eq(code, 0, stderr)
+    T.ok(vim.wait(2000, function() return trail.data().title == "from the cli" end), "reloaded")
+  end)
+end)
+
+T.test("watcher: a deleted trail stays open without writes and reloads when it returns", function()
+  with_open_trail(function(_, file)
+    local raw = S.read(file)
+    os.remove(file)
+    vim.wait(400)
+    T.eq(trail.data().title, "before", "still readable")
+    plugin.next()
+    T.eq(trail.index(), 1)
+    T.eq(vim.uv.fs_stat(file), nil, "stepping wrote no cursor into a deleted trail")
+
+    S.write(file, (raw:gsub('"before"', '"back again"')))
+    T.ok(vim.wait(2000, function() return trail.data().title == "back again" end), "reloaded")
+    plugin.jump(1)
+    T.eq(vim.json.decode(S.read(file)).cursor, 1, "cursor writes resumed")
+  end)
+end)

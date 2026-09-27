@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "id": "auth-flow",
+  "title": "How a login request becomes a session",
+  "root": "/r",
+  "author": {
+    "kind": "agent",
+    "name": "claude"
+  },
+  "created_at": "2026-09-08T14:02:00Z",
+  "rev": 3,
+  "cursor": "1",
+  "steps": [
+    {
+      "path": "src/auth.ts",
+      "title": "Token minted before MFA",
+      "range": [
+        39,
+        44
+      ],
+      "anchor": {
+        "text": "  const token = mint(user)",
+        "symbol": "login"
+      },
+      "note": "Token is minted here, before verifyMfa runs."
+    },
+    {
+      "path": "src/session.ts",
+      "range": [
+        12,
+        12
+      ],
+      "anchor": {
+        "text": "export function open(token) {"
+      },
+      "note": ""
+    }
+  ]
+}

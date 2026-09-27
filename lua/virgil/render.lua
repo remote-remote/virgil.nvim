@@ -57,8 +57,12 @@ local function narration(view, width)
     table.insert(chunks, { { indent .. GUTTER .. " ", style.note }, { text, hl } })
   end
 
-  for _, line in ipairs(format.wrap(view.note or "", body)) do
-    push(line, style.note)
+  if (view.note or ""):find("%S") then
+    for _, line in ipairs(format.wrap(view.note, body)) do
+      push(line, style.note)
+    end
+  else
+    push("no note yet", "VirgilMeta")
   end
   if view.detail then
     push("", "VirgilMeta")

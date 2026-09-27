@@ -170,6 +170,34 @@ function M.symbol_range(bufnr, symbol, hint_line)
   return best or candidates[1]
 end
 
+-- The inverse of `symbol_range`: the name of the innermost declaration around
+-- `line` that `symbol_range` resolves back to a range containing it. Capture
+-- uses it to scope an anchor whose text is not unique in the file.
+function M.enclosing_symbol(bufnr, line)
+  local parser = parser_for(bufnr)
+  if not parser then return nil end
+  local parsed, trees = pcall(parser.parse, parser)
+  if not parsed or not trees or not trees[1] then return nil end
+  local text = vim.api.nvim_buf_get_lines(bufnr, line - 1, line, false)[1] or ""
+  local col = math.max((text:find("%S") or 1) - 1, 0)
+  local node = trees[1]:root():named_descendant_for_range(line - 1, col, line - 1, col)
+  while node do
+    -- A call has a `name` field too (`fd:close()`), and "function_call"
+    -- matches the declaration needles, but a call scopes nothing.
+    local kind = node:type()
+    local named = is_declaration(kind) and not kind:find("call", 1, true) and node:field("name")[1]
+    if named then
+      local ok, name = pcall(vim.treesitter.get_node_text, named, bufnr)
+      if ok and name ~= "" and not name:find("\n") then
+        local range = M.symbol_range(bufnr, name, line)
+        if range and range.start_line <= line and line <= range.end_line then return name end
+      end
+    end
+    node = node:parent()
+  end
+  return nil
+end
+
 -- Resolve against a loaded buffer and, on a hit, hand back an extmark that will
 -- track live edits from here on (same gravity settings as herdr-nvim/comments).
 function M.resolve(bufnr, step)
