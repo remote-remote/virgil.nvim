@@ -81,7 +81,7 @@ The step editor is a floating buffer over the code. Line 1 is the step's title, 
 
 If an agent rewrites the trail while the editor is open, the editor's border says so. `:w` still saves when the step you are editing is unchanged in the new file, wherever it moved to. Otherwise `:w` refuses and keeps your text, and `:w!` overwrites that step.
 
-Every edit is saved to the trail file at once, based on the revision the plugin last read. If an agent wrote the trail in between, the edit is refused, the trail reloads, and you press the key again.
+Every edit is saved to the trail file at once, based on the revision the plugin last read. If an agent wrote the trail in between, the edit is refused, the trail reloads, and you press the key again. Picking lines for `a`, `A` or `R` is the exception: an agent write during the pick waits until you press `<CR>`, and the pick then applies to the new trail if the step it was for is still there unchanged. If that step changed, is gone, or matches more than one step, nothing is saved.
 
 Repairing a trail uses the same keys. For a drifted step, `R` preselects the lines where the step was found, so `R` then `<CR>` re-anchors it there, and `=` does the same in one key when the step was found by its anchor text. A step found only by its symbol has changed inside, so it needs `R`. A broken step has no place in the file, so `R` preselects its stored lines as a starting point.
 
@@ -194,4 +194,4 @@ The CLI refuses to rewrite a trail whose last content write was by a `human` unl
 make test
 ```
 
-This runs the headless Neovim suite in `tests/`, which also runs the CLI to check that the plugin and CLI agree on the storage path. It needs `nvim` and `python3` on `PATH`, and it writes only under temporary directories.
+This runs the headless Neovim suite in `tests/`, which also runs the CLI to check that the plugin and CLI agree on the storage path and the trail file format. It needs `nvim` and `python3` on `PATH`, and it writes only under temporary directories.
