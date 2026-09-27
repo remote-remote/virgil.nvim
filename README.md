@@ -19,7 +19,10 @@ Requires Neovim 0.10 or newer. With [lazy.nvim](https://github.com/folke/lazy.nv
 ```lua
 {
   "remote-remote/virgil.nvim",
-  cmd = { "Virgil", "VirgilQuit", "VirgilNext", "VirgilPrev", "VirgilSteps", "VirgilQuickfix", "VirgilInstall" },
+  cmd = {
+    "Virgil", "VirgilQuit", "VirgilNext", "VirgilPrev", "VirgilSteps", "VirgilQuickfix", "VirgilInstall",
+    "VirgilNew", "VirgilAdd", "VirgilEdit",
+  },
   opts = {},
 }
 ```
@@ -38,9 +41,23 @@ For a local checkout, replace the first line with `dir = "~/code/virgil.nvim"`.
 | `:VirgilSteps` | Pick a step in the active trail. |
 | `:VirgilQuickfix` | Dump the active trail into the quickfix list. |
 | `:VirgilQuit` | Leave the active trail and close its tabpage. |
+| `:VirgilNew [title]` | Start a trail. The current line, or the lines of a visual selection, become step 1, and the step editor opens on it. Asks for a title if none is given. |
+| `:VirgilAdd` | Add the current line or selection as a step after the current one, then edit it. With no trail open, pick one or start a new one. |
+| `:VirgilAdd!` | Quick pin: add the step with no title or note, without opening the editor. |
+| `:VirgilEdit` | Edit the current step's title and note. |
 | `:VirgilInstall {dir} ...` | Link the agent skill into the given skills directories. See [Install the skill and the CLI](#install-the-skill-and-the-cli). |
 
 Inside the index panel: `j` / `k` preview the next or previous step, `<CR>` goes to the step's code, `o` shows it without leaving the panel, `]t` / `[t` step, `q` quits and `Q` dumps to quickfix.
+
+## Writing trails by hand
+
+A step is captured from code: the first line picked is its anchor, the text the plugin looks for when the file changes. Blank lines at either end of a selection are dropped. When the first line also appears elsewhere in the file, the step is scoped to the enclosing function or declaration, and without one the plugin warns that the step can break. A buffer with unsaved changes can still be captured, with a warning that the step anchors to unsaved text.
+
+A step with no note yet is a stub. The panel marks it `stub`, and the code window says "no note yet". Stubs let you pin the stops while reading and write the notes later, or ask an agent to write them.
+
+The step editor is a floating buffer over the code. Line 1 is the step's title, and the note starts on line 3. `:w` saves, `q` closes and asks first if there is unsaved text, and `ZZ` saves and closes. The number at the end of line 1 is the title's width against what the panel shows. The note in the code window follows what you type.
+
+Every edit is saved to the trail file at once. If an agent rewrites the trail while the editor is open, the editor's border says so. `:w` still saves when the step you are editing is unchanged in the new file, wherever it moved to. Otherwise `:w` refuses and keeps your text, and `:w!` overwrites that step.
 
 ## Suggested keymaps
 
@@ -54,6 +71,9 @@ keys = {
   { "<leader>Ts", function() require("virgil").steps() end,       desc = "Trail: pick a step" },
   { "<leader>Tq", function() require("virgil").to_quickfix() end, desc = "Trail: dump to quickfix" },
   { "<leader>Tx", function() require("virgil").quit() end,        desc = "Trail: quit" },
+  { "<leader>Tn", ":VirgilNew<CR>",       mode = { "n", "x" }, desc = "Trail: new trail from here" },
+  { "<leader>Ta", ":VirgilAdd<CR>",       mode = { "n", "x" }, desc = "Trail: add a step here" },
+  { "<leader>Te", "<cmd>VirgilEdit<CR>",                         desc = "Trail: edit this step" },
 },
 ```
 

@@ -96,6 +96,20 @@ local function ensure_layout()
   end
 end
 
+function M.code_win()
+  if M.is_open() and state.code_win and vim.api.nvim_win_is_valid(state.code_win) then
+    return state.code_win
+  end
+  return nil
+end
+
+function M.panel_width()
+  if M.is_open() and state.panel_win and vim.api.nvim_win_is_valid(state.panel_win) then
+    return vim.api.nvim_win_get_width(state.panel_win)
+  end
+  return panel.WIDTH
+end
+
 function M.focus_code()
   if M.is_open() and state.code_win and vim.api.nvim_win_is_valid(state.code_win) then
     vim.api.nvim_set_current_win(state.code_win)
