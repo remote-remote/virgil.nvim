@@ -136,7 +136,7 @@ end
 -- `capture.location` makes one, from lines someone picked.
 
 local function same_step(a, b)
-  return a.path == b.path and vim.deep_equal(a.range, b.range) and vim.deep_equal(a.anchor, b.anchor)
+  return a.path == b.path and vim.deep_equal(a.anchor, b.anchor)
     and (a.title or "") == (b.title or "") and (a.note or "") == (b.note or "")
 end
 
@@ -152,6 +152,18 @@ local function find_step(steps, want, hint, match)
     if match(step, want) then return i - 1 end
   end
   return nil
+end
+
+-- Where `want` sits in `steps`, when exactly one step matches it.
+local function find_only(steps, want)
+  local found
+  for i, step in ipairs(steps) do
+    if same_step(step, want) then
+      if found then return nil, true end
+      found = i - 1
+    end
+  end
+  return found, false
 end
 
 local function identity(n)
@@ -206,6 +218,7 @@ end
 --                 same; false: unknown, so live anchors are dropped)
 -- opts.recaptured new indices whose location was picked again
 -- opts.index      the step to show afterwards
+-- opts.base_rev   the revision the change was decided on (default: the loaded one)
 -- opts.check      false skips the revision check, for a change that finds its
 --                 own step in whatever is on disk
 -- opts.record     false keeps the change off the undo stack
@@ -216,7 +229,7 @@ local function commit(change, opts)
     return nil
   end
   local data = trail.data()
-  local before = store.rev(data)
+  local before = opts.base_rev or store.rev(data)
   local undo = opts.record ~= false and snapshot() or nil
   local saved, err, kind = store.save(data.__file, opts.check ~= false and before or nil, function(fresh)
     local e = change(fresh)
@@ -297,7 +310,8 @@ local function open_editor(index)
     notify("the step editor has unsaved text; :w or :q! it first", WARN)
     return
   end
-  state.edited = { index = index, original = vim.deepcopy(step) }
+  local edited = { index = index, original = vim.deepcopy(step) }
+  state.edited = edited
   editor.open({
     name = ("virgil://%s/%d"):format(data.id or "trail", index + 1),
     heading = ("step %d/%d · %s"):format(index + 1, #data.steps, data.title or data.id or "trail"),
@@ -312,6 +326,7 @@ local function open_editor(index)
       M.show({ keep_cursor = true, preview = true })
     end,
     on_close = function()
+      if state.edited ~= edited then return end
       state.edited, state.preview = nil, nil
       if trail.is_active() then M.show({ keep_cursor = true, preview = true }) end
     end,
@@ -400,6 +415,9 @@ function M.new(title, opts)
   local function create(t)
     t = vim.trim(t or "")
     if t == "" then return end
+    if editor.is_modified() then
+      return notify("the step editor has unsaved text; :w or :q! it first", WARN)
+    end
     local path, id = capture.new_path(store.trails_dir(state.root), t)
     local data, err = store.create(path, { id = id, title = t, root = state.root, steps = { new_step(loc) } })
     if not data then return notify("could not create the trail: " .. tostring(err), WARN) end
@@ -455,12 +473,31 @@ local function code_window_for(index)
   return view.code_win()
 end
 
+-- opts.index is the step the pick is for. When the trail changed while the
+-- reader picked, it is found again by content before `on_done` gets it.
 local function start_pick(win, opts)
-  local on_done = opts.on_done
+  local rev = store.rev(trail.data())
+  local want = opts.index and vim.deepcopy(trail.step(opts.index))
   pick.start(win, {
     message = opts.message,
     select = opts.select,
-    on_done = on_done,
+    on_done = function(bufnr, line1, line2)
+      if state.reload_pending then
+        state.reload_pending = false
+        reload()
+      end
+      if not trail.is_active() then return end
+      local index = opts.index
+      if want and store.rev(trail.data()) ~= rev then
+        local ambiguous
+        index, ambiguous = find_only(trail.data().steps, want)
+        if not index then
+          local why = ambiguous and "matches more than one step now" or "changed on disk"
+          return notify(("step %d %s while you picked; nothing was saved"):format(opts.index + 1, why), WARN)
+        end
+      end
+      opts.on_done(bufnr, line1, line2, index)
+    end,
     on_end = function()
       if state.reload_pending then
         state.reload_pending = false
@@ -479,8 +516,9 @@ function M.pick_add(index, at_end)
   local where = at_end and "at the end" or ("after " .. (index + 1))
   start_pick(win, {
     message = "lines for a new step " .. where,
-    on_done = function(bufnr, line1, line2)
-      M.add({ bufnr = bufnr, line1 = line1, line2 = line2, after = index, at_end = at_end })
+    index = not at_end and index or nil,
+    on_done = function(bufnr, line1, line2, after)
+      M.add({ bufnr = bufnr, line1 = line1, line2 = line2, after = after, at_end = at_end })
     end,
   })
 end
@@ -495,8 +533,9 @@ function M.pick_range(index)
   start_pick(win, {
     message = ("new lines for step %d"):format(index + 1),
     select = { first, last },
-    on_done = function(bufnr, line1, line2)
-      M.set_range({ index = index, bufnr = bufnr, line1 = line1, line2 = line2 })
+    index = index,
+    on_done = function(bufnr, line1, line2, target)
+      M.set_range({ index = target, bufnr = bufnr, line1 = line1, line2 = line2 })
     end,
   })
 end
@@ -525,9 +564,10 @@ end
 function M.retitle(index)
   index = active_step(index)
   if not index then return end
+  local rev = store.rev(trail.data())
   vim.ui.input({ prompt = "Step title: ", default = trail.step(index).title or "" }, function(title)
     if title == nil then return end
-    commit(function(fresh) fresh.steps[index + 1].title = vim.trim(title) end, { keep_cursor = true })
+    commit(function(fresh) fresh.steps[index + 1].title = vim.trim(title) end, { keep_cursor = true, base_rev = rev })
   end)
 end
 
@@ -648,10 +688,13 @@ function M.start(data)
   if editor.is_modified() then
     return notify("the step editor has unsaved text; :w or :q! it first", WARN)
   end
+  state.reload_pending = false
+  if pick.active() then pick.cancel() end
   if editor.is_open() then editor.close() end
   if not state.watching then state.watching = store.watch(state.root, on_disk_change) end
   forget_anchors()
   state.deleted = false
+  state.undo, state.redo = {}, {}
   trail.load(data)
   M.show()
 end
