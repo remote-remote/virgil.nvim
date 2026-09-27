@@ -33,7 +33,7 @@ The count falls out of how many load-bearing facts the flow actually has, not ou
 
 ## Titles
 
-Required: `virgil` refuses a step without one, because the alternative is the panel guessing from the note's first sentence.
+Every step you write gets one. `virgil` warns about a step without one, because the panel then guesses from the note's first sentence.
 
 A title is the **claim the step makes**, not the name of the code it points at. "Leader before every mapping", not "keymaps.lua". Keep it under about 34 columns or the panel truncates it. Read the titles on their own when you are done: they should hold together as an argument, which is what the reader skims when they come back to the trail a week later.
 
@@ -49,10 +49,10 @@ Trace the flow in the actual files first. A trail assembled from what the names 
 
 The CLI ships inside this skill: it is the `virgil` file next to this `SKILL.md`. Run it by path from the skill's base directory, which the harness gives you when it loads the skill. Below, `<skill-dir>` stands for that directory. If `virgil` is on `PATH`, the bare name works too.
 
-Then pipe a draft in. Use a quoted heredoc so backticks and `$` inside notes survive the shell:
+Then pipe a draft in with `--new`, which refuses an id that is already taken, so a first write never replaces someone else's trail. Use a quoted heredoc so backticks and `$` inside notes survive the shell:
 
 ```sh
-<skill-dir>/virgil create <<'EOF'
+<skill-dir>/virgil create --new <<'EOF'
 {"title": "How a login request becomes a session", "steps": [
   {"path": "src/auth/login.ts", "range": [39, 52],
    "title": "Token minted here",
@@ -61,8 +61,23 @@ Then pipe a draft in. Use a quoted heredoc so backticks and `$` inside notes sur
 EOF
 ```
 
-`<skill-dir>/virgil --help` has the full draft schema and the other commands. Anchors are derived from the files, never written by hand.
+`<skill-dir>/virgil --help` has the full draft schema and the other commands. An `anchor` is read from the file or carried over from `show --json`; leave it out of anything you write yourself.
 
-Fix everything it warns about, or tell the reader why you left it. Re-running `create` with the same id rewrites the trail in place and the reader's open tabpage reloads, so revising is cheap.
+Fix everything it warns about, or tell the reader why you left it. If `--new` refuses because the id exists, pick another id, or revise that trail as below.
 
 Finally, hand over the title and `:Virgil <id>` and stop. Summarising the trail back in the terminal rebuilds the wall of `file:line` prose the trail exists to replace. `<skill-dir>/virgil cursor <id>` reports which step they reached, if you need to know whether it landed.
+
+## Revising a trail, yours or the reader's
+
+The reader edits trails in their editor too: they reorder steps, rewrite notes, and pin stubs. A trail is revised from what is on disk now, never from your own earlier draft, which would silently revert their edits.
+
+1. Get the current trail as a draft: `<skill-dir>/virgil show ID --json`. Note its `rev`.
+2. Change only what was asked. Keep the reader's notes, titles and order.
+3. Leave `anchor` on every step you did not trace again: `create` checks it against the file and follows the code if it moved. On a step you traced again, drop `anchor` and give the new `range`.
+4. Write it back: `<skill-dir>/virgil create --expect-rev REV`, piping in the edited draft.
+
+If `create` refuses because the trail changed since that rev, the reader is editing it: start again from step 1 and merge your change into the new version. A trail a person edited last is only rewritten with a current `--expect-rev`.
+
+**Stubs.** A step with an empty note is a stop the reader chose. When asked to write up a trail, write each stub's note and title to the same load-bearing standard as your own steps, at the range the reader picked. Leave no stubs of your own behind.
+
+The reader's open tabpage reloads on every write, so revising is cheap.

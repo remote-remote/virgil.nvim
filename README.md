@@ -134,7 +134,9 @@ The links point into the plugin's install directory, so a plugin update changes 
 
 Each link is relative, computed from the real location of the destination directory. A skills directory is often a symlink into a dotfiles repo, and a relative link committed there resolves from where it really lives. Committing the links in your dotfiles is fine: `lazy-lock.json` pins the plugin commit, so the linked skill and CLI move in lock-step with it.
 
-The CLI is a single Python 3 script with no dependencies. `virgil --help` documents the draft schema and the `create`, `list`, `show`, `cursor` and `rm` commands. `VIRGIL_AUTHOR` sets the author name recorded on created trails.
+The CLI is a single Python 3 script with no dependencies. `virgil --help` documents the draft schema and the `create`, `list`, `show`, `cursor` and `rm` commands. `VIRGIL_AUTHOR` sets the name recorded as a trail's author and last editor, by the CLI and the plugin alike (the plugin falls back to `$USER`).
+
+An agent picks up a trail a person started or edited with `virgil show ID --json`, which prints the trail as a draft with its `rev` and each step's anchor. `create --expect-rev REV` writes it back. A step that keeps its `anchor` is checked against the file rather than read again from its line numbers: it stays if its first line still matches, follows the text with a warning if it moved, and is refused if the text is gone. Stubs and untitled steps are written with a warning.
 
 ## Storage
 

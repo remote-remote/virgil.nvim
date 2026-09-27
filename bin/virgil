@@ -19,16 +19,23 @@ The reader opens it with :Virgil and steps with :VirgilNext and
             {
               "path": "src/auth/login.ts",       from the repo root or the cwd
               "range": [39, 52],                 1-indexed, inclusive
-              "title": "Token minted here",      required; the panel is narrow
+              "title": "Token minted here",      the claim; the panel is narrow
               "note": "What the code does not say.",
               "symbol": "handleLogin"            optional; treesitter fallback
             }
           ]
         }
 
-      anchor.text is read out of the file rather than supplied: the first line
-      of the range is the key nvim re-anchors against once the file is edited,
-      so it has to match byte for byte. Start a range on a distinctive line.
+      anchor.text is read out of the file: the first line of the range is the
+      key nvim re-anchors against once the file is edited, so it has to match
+      byte for byte. Start a range on a distinctive line. A step copied from
+      `show --json` keeps its `anchor`, and create checks it instead: the
+      range stays if its first line still matches, moves (with a warning) if
+      the text is found once elsewhere in the file, and is refused if it is
+      gone. Drop `anchor` from a step you traced again.
+
+      A step with no note is a stub someone pinned to write up later. Stubs
+      and steps without titles are written, with a warning.
 
       Re-running create on an existing id rewrites it, keeping author,
       created_at and the reader's cursor (clamped to the new step count).
@@ -39,6 +46,7 @@ The reader opens it with :Virgil and steps with :VirgilNext and
 
   virgil list                trails for this root, with step counts
   virgil show ID             the compiled trail, as the panel will read it
+  virgil show ID --json      the trail as a draft for create, with its rev
   virgil cursor ID [N]       the step the reader is on; with N, drive them
   virgil rm ID               delete a trail
 
@@ -140,6 +148,7 @@ def resolve_path(rel, root):
 TRAIL_KEYS = ("version", "id", "title", "root", "author", "created_at",
               "updated_by", "updated_at", "rev", "cursor", "steps")
 STEP_KEYS = ("path", "title", "range", "anchor", "note")
+DRAFT_STEP_KEYS = STEP_KEYS + ("symbol",)
 ANCHOR_KEYS = ("text", "symbol")
 PERSON_KEYS = ("kind", "name")
 ID_PATTERN = r"^[A-Za-z0-9._-]+$"
@@ -332,14 +341,18 @@ def compile_trail(draft, root, author, existing):
         note = str(raw.get("note") or "").strip()
         rel = str(raw.get("path") or "").strip()
 
-        if not step_title:
-            errors.append("%s: title is required; without one the panel guesses "
-                          "from the note's first sentence" % where)
-        elif display_width(step_title) > title_budget:
+        # A step with no note is a stub: a stop someone pinned to write up
+        # later. It is kept, and flagged until someone writes it.
+        if not note and not step_title:
+            warnings.append("%s is a stub with no title or note yet" % where)
+        elif not note:
+            warnings.append("%s has no note yet" % where)
+        elif not step_title:
+            warnings.append("%s: no title, so the panel guesses one from the note's "
+                            "first sentence; give it one" % where)
+        if step_title and display_width(step_title) > title_budget:
             warnings.append("%s: title is %d columns, panel truncates at %d: %r"
                             % (where, display_width(step_title), title_budget, step_title))
-        if not note:
-            errors.append("%s: note is required" % where)
         if not rel:
             errors.append("%s: path is required" % where)
             continue
@@ -369,6 +382,31 @@ def compile_trail(draft, root, author, existing):
         end = rng[1] if len(rng) > 1 else start
 
         lines = read_lines(abs_path)
+
+        # A supplied anchor is the text someone captured, so it is verified
+        # rather than read again from `range`: after an edit above the step,
+        # the stored lines point at the wrong code, and only the text knows.
+        supplied = raw.get("anchor")
+        if supplied is not None:
+            if (not isinstance(supplied, dict) or not isinstance(supplied.get("text"), str)
+                    or not supplied["text"].strip()):
+                errors.append("%s: anchor must be an object whose text is the range's "
+                              "first line; drop it to read the anchor from the file" % where)
+                continue
+            want = supplied["text"]
+            if not (1 <= start <= len(lines) and lines[start - 1] == want):
+                hits = [n for n, line in enumerate(lines, 1) if line == want]
+                if len(hits) != 1:
+                    found = ("is no longer in %s" % rel if not hits else
+                             "is at %d places in %s, none of them line %d" % (len(hits), rel, start))
+                    errors.append("%s: its anchor text %r %s; trace the step again and give "
+                                  "a fresh range without `anchor`" % (where, want.strip(), found))
+                    continue
+                warnings.append("%s: moved from line %d to %d, where its anchor text is now; "
+                                "if you traced this step again, drop its `anchor`"
+                                % (where, start, hits[0]))
+                end, start = hits[0] + (end - start), hits[0]
+
         if start < 1 or start > len(lines):
             errors.append("%s: line %d is outside %s (%d lines)"
                           % (where, start, rel, len(lines)))
@@ -387,7 +425,7 @@ def compile_trail(draft, root, author, existing):
                           "the anchor; start on a line with code" % (where, start))
             continue
 
-        symbol = str(raw.get("symbol") or "").strip()
+        symbol = str(raw.get("symbol") or (supplied or {}).get("symbol") or "").strip()
         if lines.count(anchor_text) > 1 and not symbol:
             warnings.append("%s: %s:%d (%r) is not unique in the file, so an edit "
                             "above it breaks the step; start the range on a "
@@ -400,13 +438,15 @@ def compile_trail(draft, root, author, existing):
         anchor = {"text": anchor_text}
         if symbol:
             anchor["symbol"] = symbol
-        steps.append({
+        step = {k: v for k, v in raw.items() if k not in DRAFT_STEP_KEYS}
+        step.update({
             "path": rel,
             "title": step_title,
             "range": [start, end],
             "anchor": anchor,
             "note": note,
         })
+        steps.append(step)
 
     if raw_steps and not errors:
         if len(steps) < MIN_STEPS:
@@ -593,12 +633,25 @@ def cmd_list(args):
     return 0
 
 
+def as_draft(trail):
+    """The trail as a draft `create` takes back, anchors included."""
+    draft = {"id": trail.get("id"), "title": trail.get("title", ""), "rev": trail_rev(trail)}
+    if isinstance(trail.get("updated_by"), dict):
+        draft["updated_by"] = trail["updated_by"]
+    draft["steps"] = [ordered(s, STEP_KEYS) for s in trail.get("steps", [])]
+    return draft
+
+
 def cmd_show(args):
+    switches, args = take_switches(args, ("--json",))
     flags, rest = take_flags(args, ("--root",))
     if len(rest) != 1:
-        die("usage: virgil show ID")
+        die("usage: virgil show ID [--json]")
     root = repo_root(flags.get("--root") or os.getcwd())
     trail, path = read_trail(root, rest[0])
+    if switches["--json"]:
+        sys.stdout.write(json.dumps(as_draft(trail), indent=2, ensure_ascii=False) + "\n")
+        return 0
     sys.stdout.write("%s  (%s, %d steps, reader on %d)\n"
                      % (trail.get("title", ""), path, len(trail.get("steps", [])),
                         trail.get("cursor", 0) + 1))
