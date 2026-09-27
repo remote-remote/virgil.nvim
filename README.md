@@ -104,6 +104,39 @@ When `XDG_DATA_HOME` is unset or empty, the base is `~/.local/share`. The direct
 
 For example, `/Users/me/code/virgil.nvim` becomes `virgil.nvim-<12 hex digits>`. The name keeps the directory browsable, and the hash keeps two checkouts with the same name apart. Each worktree is its own root, so it has its own trails. Each trail file also records its `root`, and only trails whose `root` matches are listed.
 
+## Trail file format and write rules
+
+The plugin and the CLI both write trail files. They follow the rules below, and `tests/test_contract.lua` runs both implementations against each other to hold them to it.
+
+A trail file is a JSON object with these fields, in this order:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `version` | `1` | Format version. |
+| `id` | string | The file name without `.json`. Letters, digits, `.`, `_` and `-`. |
+| `title` | string | The panel header. Required, not blank. |
+| `root` | string | Realpath of the repo root the step paths are relative to. |
+| `author` | `{kind, name}` | Who created the trail. `kind` is `human` or `agent`. |
+| `created_at` | string | UTC, `YYYY-MM-DDTHH:MM:SSZ`. |
+| `updated_by` | `{kind, name}` | Who made the last content write. |
+| `updated_at` | string | When the last content write happened. |
+| `rev` | integer | Revision counter. A file without one is at rev 0. |
+| `cursor` | integer | The reader's step, 0-based. |
+| `steps` | list | At least one step. |
+
+Each step has `path` (relative to `root`), `title` (may be empty), `range` (`[start, end]`, 1-based and inclusive), `anchor` (`{text, symbol}`, with `symbol` optional) and `note` (may be empty). A step with no note yet is a stub: a stop someone pinned and has not written up.
+
+Write rules:
+
+1. `anchor.text` is the first line of the range, read from the file or the editor buffer when the location is captured. It must not be blank. A step's anchor changes only when its location is captured again. Every other edit carries the anchor through untouched, because deriving it again from stored line numbers points a step whose file has changed at the wrong line.
+2. A content write is any change other than `cursor`. It must be based on the current `rev`, and it writes `rev + 1`, `updated_by` and `updated_at`. A writer that finds a different `rev` on disk refuses and re-reads.
+3. A `cursor` write does not change `rev`, so a reader stepping through a trail never blocks an agent's revision.
+4. `created_at` and `author` are kept on every rewrite. Fields a writer does not know are kept too.
+5. Every write goes to a temporary file next to the trail and is renamed over it, so no reader ever sees half a file.
+6. Files are written as JSON with two-space indentation, fields in the order above, unknown fields after the known ones sorted by name, and non-ASCII text written as is.
+
+The CLI refuses to rewrite a trail whose last content write was by a `human` unless it is given the current revision with `--expect-rev`. The plugin reads files more loosely than it writes them, so a hand-written trail with no `rev`, `anchor` or step titles still opens.
+
 ## Tests
 
 ```sh

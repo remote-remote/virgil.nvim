@@ -15,7 +15,9 @@ M.focus = {
   reveal = function() end,
 }
 
-local state = { root = nil, resolved = {}, watching = false }
+-- `deleted` is set while the open trail's file is gone from disk: the trail
+-- stays readable, but nothing writes to it until the file comes back.
+local state = { root = nil, resolved = {}, watching = false, deleted = false }
 local initialized = false
 -- Defined below, once the callbacks they register exist.
 local init, on_disk_change
@@ -98,8 +100,10 @@ function M.show(opts)
     },
   })
 
-  local ok, err = store.write_cursor(data, index)
-  if not ok then notify("could not write cursor: " .. tostring(err), vim.log.levels.WARN) end
+  if not state.deleted then
+    local ok, err = store.write_cursor(data, index)
+    if not ok then notify("could not write cursor: " .. tostring(err), vim.log.levels.WARN) end
+  end
   if M.focus.is_available() then M.focus.reveal() end
 end
 
@@ -107,6 +111,7 @@ function M.start(data)
   if not initialized then init() end
   if not state.watching then state.watching = store.watch(state.root, on_disk_change) end
   forget_anchors()
+  state.deleted = false
   trail.load(data)
   M.show()
 end
@@ -143,6 +148,7 @@ end
 -- when the tab or one of its windows is closed behind our back.
 local function discard()
   forget_anchors()
+  state.deleted = false
   trail.unload()
 end
 
@@ -224,14 +230,25 @@ function M.to_quickfix()
   vim.cmd("copen")
 end
 
-function on_disk_change()
+-- `paths` is nil when the platform could not say which file changed.
+function on_disk_change(paths)
   if not trail.is_active() then return end
   local file = trail.data().__file
+  if paths and not vim.tbl_contains(paths, file) then return end
+  if not vim.uv.fs_stat(file) then
+    if not state.deleted then
+      state.deleted = true
+      notify("trail deleted on disk; it reloads if the file comes back", vim.log.levels.WARN)
+      M.show({ keep_cursor = true })
+    end
+    return
+  end
   local data, err = store.read(file)
   if not data then
     notify("trail reload failed: " .. tostring(err), vim.log.levels.WARN)
     return
   end
+  state.deleted = false
   forget_anchors()
   trail.load(data)
   M.show({ keep_cursor = true })
